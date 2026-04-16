@@ -3,7 +3,7 @@ import torch.nn as nn
 from transformers import AutoModel, AutoTokenizer
 
 class ProteinQueryEncoder(nn.Module):
-    def __init__(self, model_name, config, device='cuda' if torch.cuda.is_available() else 'cpu'):
+    def __init__(self, model_name, config=None, device='cuda' if torch.cuda.is_available() else 'cpu'):
         super(ProteinQueryEncoder, self).__init__()
         self.model = AutoModel.from_pretrained(model_name, config=config)
         self.tokenizer = AutoTokenizer.from_pretrained(model_name, config=config)
