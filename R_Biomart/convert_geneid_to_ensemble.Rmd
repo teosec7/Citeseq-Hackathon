@@ -1,0 +1,42 @@
+---
+title: "biomart"
+author: "sofia.d"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+BiocManager::install("biomaRt", update = TRUE, ask = FALSE)
+library(biomaRt)
+```
+
+```{r genes}
+mart <- useMart("ensembl", dataset = "hsapiens_gene_ensembl")
+
+genes <- readLines("/Users/sofia.d/EPFL/Biomart/data/genes.txt")
+
+# get the reference 
+mart <- useEnsembl(
+  biomart = "genes",
+  dataset = "hsapiens_gene_ensembl",
+  mirror = "useast"   # or "www"
+)
+
+# get matching genes
+results <- getBM(
+  attributes = c("hgnc_symbol", "ensembl_gene_id"),
+  filters = "hgnc_symbol",
+  values = genes,
+  mart = mart
+)
+
+print(results)
+
+write.csv(results, "../output/results.csv", row.names = FALSE)
+```
+
