@@ -10,15 +10,16 @@ class ProteinQueryEncoder(nn.Module):
         self.device = device
         self.model.to(device)
 
-    def forward(self, queries):
-        # tokenize the queries
+    def forward(self, sample):
+        # Tokenize the queries
+        _, queries = sample
         encoded = self.tokenizer(
             queries, 
             padding=True, 
             return_tensors='pt', 
         ).to(self.device)
 
-        # encode the queries (use the [CLS] last hidden states as the representations)
+        # Encode the queries : use the [CLS] last hidden states as the embedding
         embeds = self.model(**encoded).last_hidden_state[:, 0, :]
         
         return embeds
