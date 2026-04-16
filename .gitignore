@@ -1,2 +1,7 @@
+*h5mu
+**/*h5mu
+*.ipynb
+*/**.txt
+.ipynb_checkpoints/
+
 .DS_Store
-Dataset/*
