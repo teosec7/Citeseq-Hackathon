@@ -1,98 +1,219 @@
-# Welcome to the Lemanic Life Science Hackathon : Project 4 - LostLoss in Translation
+# Cell Embedding Extractor
 
-### AI for Modeling Gene Translation from RNA to Proteins in Immune Cells
+A unified Python interface for extracting cell embeddings from single-cell RNA-seq data using 11 methods across three categories: simple dimensionality reduction, classical VAE models, and foundation models.
 
-## Overview
+## Supported Methods
 
-*LostLoss in Translation* is an interdisciplinary machine learning project that aims to model gene translation in single cells by predicting **protein abundance from RNA expression**.
+| Category | Method | Key | Package | Output dims |
+|---|---|---|---|---|
+| Simple | PCA | `pca` | scanpy | 50 |
+| Simple | UMAP | `umap` | scanpy | 2 |
+| Simple | t-SNE | `tsne` | scanpy | 2 |
+| Simple | Diffusion Map | `diffmap` | scanpy | 15 |
+| Classical | scVI | `scvi` | scvi-tools | 30 |
+| Classical | scANVI | `scanvi` | scvi-tools | 30 |
+| Classical | TOTALVI | `totalvi` | scvi-tools | 30 |
+| Classical | PeakVI | `peakvi` | scvi-tools | 30 |
+| Foundation | scGPT | `scgpt` | scgpt | 512 |
+| Foundation | Geneformer | `geneformer` | geneformer | 512 |
+| Foundation | UCE | `uce` | uce-model | 1280 |
 
-Understanding how RNA expression translates into protein levels is a key challenge in computational biology, with direct applications in:
+## Installation
 
-* Cell type annotation
-* Understanding immune responses in disease
-* Improving biological interpretability of single-cell data
+Install core dependencies:
 
-We leverage a large-scale, real-world **CITE-seq dataset** curated by CHUV, containing paired RNA and protein measurements at single-cell resolution.
+```bash
+pip install numpy anndata scanpy
+```
 
----
+For classical VAE models:
 
-## Project Goals
+```bash
+pip install scvi-tools torch
+```
 
-This project focuses on building and benchmarking predictive models that infer protein abundance from RNA data using two complementary approaches:
+For foundation models (install only what you need):
 
-### 1. Classical & Deep Learning Models
+```bash
+pip install scgpt          # scGPT
+pip install geneformer     # Geneformer
+pip install uce-model      # UCE
+```
 
-* Supervised learning pipelines
-* Baseline regression models (e.g. linear regression, random forests, LightGBM)
-* Deep neural networks (e.g. MLPs, PyTorch-based architectures)
+Or install everything at once:
 
-### 2. Foundation Model-Based Approaches
+```bash
+pip install -r requirements.txt
+```
 
-* Leveraging RNA and biological language foundation models
-* Using embeddings from pretrained models (e.g. HuggingFace ecosystem)
-* Exploring transfer learning for cross-modal prediction
+## Quick Start
 
----
+```python
+import scanpy as sc
+from embeddings import extract_all_embeddings
 
-## Dataset
+adata = sc.read_h5ad("my_data.h5ad")
 
-We use a curated **CITE-seq dataset** provided by CHUV, which includes:
+# Run all methods whose dependencies are installed
+results = extract_all_embeddings(adata)
 
-* Single-cell RNA expression profiles
-* Matching protein abundance measurements (ADT data)
-* Associated metadata for cell annotation and experimental context
+for name, emb in results.items():
+    print(f"{name}: {emb.shape}")
+# pca: (5000, 50)
+# umap: (5000, 2)
+# scvi: (5000, 30)
+# ...
+```
 
-### Format
+## Usage
 
-* Data is provided in **`.h5ad` format (AnnData)**
-* Includes preprocessed and analysis-ready matrices
-* Accompanied by a Jupyter notebook tutorial for loading, exploring, and visualizing the dataset in Python
+### Run specific methods
 
----
+```python
+results = extract_all_embeddings(adata, methods=["pca", "scvi", "scgpt"])
+```
 
-## Scientific Skills & Requirements
+### Configure VAE training
 
-### Programming & Data Science
+```python
+results = extract_all_embeddings(
+    adata,
+    methods=["scvi", "scanvi"],
+    batch_key="batch",
+    labels_key="cell_type",
+    n_latent=20,
+    max_epochs=200,
+)
+```
 
-* Python (NumPy, pandas, matplotlib, seaborn)
-* Unix/Linux command line
-* Git & version control
-* Conda environment management
+### Use foundation model checkpoints
 
-### Machine Learning
+```python
+results = extract_all_embeddings(
+    adata,
+    methods=["scgpt", "geneformer", "uce"],
+    model_paths={
+        "scgpt": "/data/checkpoints/scGPT_human",
+        "geneformer": "ctheodoris/Geneformer",
+    },
+    gene_col="feature_name",
+    species="human",
+    device="cuda",
+)
+```
 
-* Core ML concepts:
+### List available methods
 
-  * Feature selection
-  * Dimensionality reduction
-  * Train/test splitting
-  * Cross-validation
-* Classical ML models:
+```python
+from embeddings import list_methods
 
-  * Regression, SVM, LightGBM (scikit-learn ecosystem)
-* Deep learning:
+# All known methods
+list_methods()
+# ['pca', 'umap', 'tsne', 'diffmap', 'scvi', 'scanvi', 'totalvi', 'peakvi', 'scgpt', 'geneformer', 'uce']
 
-  * PyTorch or PyTorch Lightning (preferred)
-  * Model training and evaluation workflows
+# Only methods with installed dependencies
+list_methods(available_only=True)
+# ['pca', 'umap', 'tsne', 'diffmap', 'scvi', ...]
+```
 
-### Advanced / Optional (Highly Valuable)
+### Store embeddings back into AnnData
 
-* Experience with foundation models or LLMs (Hugging Face ecosystem)
-* GPU computing / HPC environments
-* Computational biology / bioinformatics background
-* Single-cell omics (transcriptomics, proteomics, CITE-seq)
+```python
+results = extract_all_embeddings(adata, methods=["pca", "scvi", "scgpt"])
 
----
+for name, emb in results.items():
+    adata.obsm[f"X_{name}"] = emb
+```
 
-## Data Availability
+## API Reference
 
-The dataset will be distributed at the start of the hackathon
-* Preprocessed and ready-to-use
-* Delivered in `.h5ad` format
-* Accompanied by a a dataset description
----
+### `extract_all_embeddings`
 
-## Institution
+```python
+extract_all_embeddings(
+    adata,
+    methods=None,
+    *,
+    force_recompute=False,
+    batch_key=None,
+    labels_key=None,
+    unlabeled_category="Unknown",
+    protein_expression_obsm_key="protein_expression",
+    n_latent=30,
+    max_epochs=100,
+    n_comps=50,
+    model_paths=None,
+    device="auto",
+    species="human",
+    gene_col="index",
+) -> dict[str, np.ndarray]
+```
 
-Developed in collaboration with **CHUV (Centre Hospitalier Universitaire Vaudois)**, **EPFL-ISREC**.
+| Parameter | Description |
+|---|---|
+| `adata` | AnnData object (cells x genes). |
+| `methods` | List of method keys to run. `None` runs all available. |
+| `force_recompute` | Recompute simple embeddings even if they exist in `adata.obsm`. |
+| `batch_key` | `adata.obs` column for batch correction (scVI family). |
+| `labels_key` | `adata.obs` column for cell-type labels (required by scANVI). |
+| `unlabeled_category` | Label value for unlabeled cells in scANVI. |
+| `protein_expression_obsm_key` | `adata.obsm` key for protein counts (TOTALVI). |
+| `n_latent` | Latent dimensions for VAE models. |
+| `max_epochs` | Training epochs for VAE models. |
+| `n_comps` | Number of PCA components. |
+| `model_paths` | Dict mapping method keys to checkpoint paths. |
+| `device` | `"cuda"`, `"cpu"`, or `"auto"`. |
+| `species` | Species for UCE (`"human"`, `"mouse"`, ...). |
+| `gene_col` | `adata.var` column with gene names for scGPT. `"index"` uses `var_names`. |
 
+**Returns:** `dict[str, np.ndarray]` -- each value has shape `(n_cells, n_dims)`.
+
+## Method-Specific Notes
+
+### scANVI
+
+Requires `labels_key` pointing to a cell-type annotation column in `adata.obs`. Skipped with a warning if not provided.
+
+### TOTALVI
+
+Requires protein surface counts in `adata.obsm["protein_expression"]` (or a custom key via `protein_expression_obsm_key`). Designed for CITE-seq data. Skipped if protein data is absent.
+
+### PeakVI
+
+Expects `adata.X` to be a peak-count matrix (cells x peaks) from ATAC-seq. Not applicable to standard scRNA-seq data.
+
+### Foundation Models
+
+All foundation models require pretrained checkpoints. scGPT expects a local folder with model weights; Geneformer accepts a HuggingFace model ID or local path; UCE downloads weights automatically. A GPU is strongly recommended.
+
+## Logging
+
+The package logs progress via Python's `logging` module under the `embeddings` namespace. To see output:
+
+```python
+import logging
+logging.basicConfig(level=logging.INFO)
+```
+
+## Project Structure
+
+```
+embeddings/
+    __init__.py       Public API
+    extract.py        Orchestrator and method registry
+    simple.py         PCA, UMAP, t-SNE, Diffusion Map
+    classical.py      scVI, scANVI, TOTALVI, PeakVI
+    foundation.py     scGPT, Geneformer, UCE
+requirements.txt      Dependencies
+```
+
+## Adding a New Method
+
+1. Write an extractor function with signature `(adata: AnnData, **kwargs) -> np.ndarray` in the appropriate module.
+2. Add a one-line entry to the registry in `extract.py`:
+
+```python
+FOUNDATION_METHODS["my_method"] = ("embeddings.foundation", "extract_my_method")
+```
+
+The orchestrator picks it up automatically.
