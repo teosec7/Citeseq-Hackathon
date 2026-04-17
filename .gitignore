@@ -1,5 +1,54 @@
-.ipynb_checkpoints/
+# Byte-compiled / cache
 __pycache__/
-*.pyc
+*.py[cod]
 *.pyo
 *.pyd
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDEs/editors
+.vscode/
+.idea/
+
+# Data files (large / generated)
+*.h5ad
+*.h5
+*.loom
+*.mtx
+*.csv
+*.
+*.h5mu
+
+# Compressed files
+*.gz
+*.zip
+*.tar
+*.bz2
+
+# Figures / outputs
+*.png
+*.jpg
+*.jpeg
+*.pdf
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+
+model_save/
+c2s_api_testing/
