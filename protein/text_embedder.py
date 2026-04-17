@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from transformers import AutoModel, AutoTokenizer, BitsAndBytesConfig
 
-class ProteinQueryEncoder(nn.Module):
+class TextProteinQueryEncoder(nn.Module):
     def __init__(self, model_name, config=None, device='cuda' if torch.cuda.is_available() else 'cpu'):
         super(ProteinQueryEncoder, self).__init__()
         self.model = AutoModel.from_pretrained(model_name, config=config)
