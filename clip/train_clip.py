@@ -4,20 +4,24 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
 
-from Embeddings.dataset_rna_embeddings import EmbeddingRNADatasetIO
 from clip import CLIP
 from clip_dataset import CLIPDataset
 
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from Embeddings.dataset_rna_embeddings import EmbeddingRNADatasetIO
 from protein.protein_dataset import EmbeddingProteinQueryDatasetNoIO, EmbeddingProteinQueryDatasetIO
 
 import random
+from tqdm import tqdm
 
 def create_train_val_datasets(rna_dataset, query_dataset, train_ratio=0.8):
     """
     Split les datasets en train/val selon les cell_ids uniques pour éviter le dataleakage.
     """
     all_cell_ids = set()
-    for idx in range(len(rna_dataset)):
+    for idx in tqdm(range(len(rna_dataset))):
         _, cell_id = rna_dataset[idx]
         c_id = cell_id.item() if isinstance(cell_id, torch.Tensor) else cell_id
         all_cell_ids.add(c_id)
@@ -28,8 +32,10 @@ def create_train_val_datasets(rna_dataset, query_dataset, train_ratio=0.8):
     split_idx = int(len(all_cell_ids) * train_ratio)
     train_ids = set(all_cell_ids[:split_idx])
     val_ids = set(all_cell_ids[split_idx:])
-    
+
+    print("Instantiate train dataset")
     train_dataset = CLIPDataset(rna_dataset, query_dataset, allowed_cell_ids=train_ids)
+    print("Instantiate validation dataset")
     val_dataset = CLIPDataset(rna_dataset, query_dataset, allowed_cell_ids=val_ids)
     
     return train_dataset, val_dataset
@@ -78,8 +84,7 @@ def train_clip(model, train_loader, val_loader, optimizer, device, epochs=10):
             
             total_loss += loss.item()
             
-            if batch_idx % 10 == 0:
-                print(f"Epoch [{epoch+1}/{epochs}], Batch [{batch_idx+1}/{len(train_loader)}], Loss: {loss.item():.4f}")
+            print(f"Epoch [{epoch+1}/{epochs}], Batch [{batch_idx+1}/{len(train_loader)}], Loss: {loss.item():.4f}")
                 
         avg_loss = total_loss / len(train_loader)
         print(f"End of Epoch [{epoch+1}/{epochs}], Average Loss: {avg_loss:.4f}\n")
@@ -89,7 +94,7 @@ def train_clip(model, train_loader, val_loader, optimizer, device, epochs=10):
 
 if __name__ == "__main__":
     PROJECTION_DIM = 512
-    BATCH_SIZE = 32
+    BATCH_SIZE = 512
     LEARNING_RATE = 1e-4
     EPOCHS = 5
     TRAIN_VAL_SPLIT = 0.8
@@ -98,19 +103,24 @@ if __name__ == "__main__":
     print(f"Using device: {device}")
 
     # Load datasets
-    query_embeddings_path = "cell_texts_augmented_K20_flip10.csv_embeddings.h5"
-    rna_embeddings_path = "rna_embeddings.h5"
+    query_embeddings_path = "./protein/notebooks/cell_texts_augmented_K20_subsetOnly.csv_embeddings.h5"
+    rna_embeddings_path = "./Embeddings/RNA_embeddings_final.h5"
 
+    print("Loading datasets")
     rna_dataset = EmbeddingRNADatasetIO(rna_embeddings_path)
     query_dataset = EmbeddingProteinQueryDatasetIO(query_embeddings_path)
         
     #----------------------------- Do not change the code below this line -----------------------------#
 
+    print("Performing split")
     train_dataset, val_dataset = create_train_val_datasets(rna_dataset, query_dataset, train_ratio=TRAIN_VAL_SPLIT)
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
+    
+    print("Creating loaders")
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=4)
+    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=4)
     
     # Instantiate the CLIP model
+    print("Instantiate the model & optimizer")
     model = CLIP(
         proj_dim=PROJECTION_DIM
     )

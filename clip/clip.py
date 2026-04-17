@@ -11,7 +11,7 @@ class CLIP(torch.nn.Module):
                     init_tau=np.log(1.0),
                     init_b=0):
         super(CLIP, self).__init__()
-
+        
         # Learnable projections layer
         self.rna_proj_layer = nn.Sequential(
             torch.nn.Linear(rna_dim, rna_dim, bias=False),
