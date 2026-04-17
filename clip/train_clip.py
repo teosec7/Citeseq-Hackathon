@@ -66,6 +66,12 @@ def clip_loss(logits):
 def train_clip(model, train_loader, val_loader, optimizer, device, epochs=10):
     model.to(device)
     
+    losses = []
+    val_losses = []
+    train_steps = []
+    val_steps = []
+    global_step = 0
+    
     for epoch in range(epochs):
         model.train()
         total_loss = 0.0
@@ -73,7 +79,8 @@ def train_clip(model, train_loader, val_loader, optimizer, device, epochs=10):
         # Création de la barre de progression pour l'epoch
         pbar = tqdm(train_loader, desc=f"Epoch [{epoch+1}/{epochs}]", unit="batch")
         
-        for rna, queries, ids in pbar:
+        for batch_idx, (rna, queries, ids) in enumerate(pbar):
+            global_step += 1
             rna = rna.to(device)
             queries = queries.to(device)
             
@@ -88,23 +95,44 @@ def train_clip(model, train_loader, val_loader, optimizer, device, epochs=10):
             current_loss = loss.item()
             total_loss += current_loss
             
+            losses.append(current_loss)
+            train_steps.append(global_step)
+            
             # Mise à jour des stats dans la barre (postfix)
             pbar.set_postfix({"loss": f"{current_loss:.4f}"})
+            
+            if global_step % 100 == 0:
+                model.eval()
+                val_loss = 0.0
+                with torch.no_grad():
+                    for val_rna, val_queries, val_ids in val_loader:
+                        val_rna = val_rna.to(device)
+                        val_queries = val_queries.to(device)
+                        
+                        val_logits = model(val_rna, val_queries)
+                        v_loss = clip_loss(val_logits)
+                        val_loss += v_loss.item()
+                avg_val_loss = val_loss / len(val_loader)
+                val_losses.append(avg_val_loss)
+                val_steps.append(global_step)
+                
+                tqdm.write(f"Batch [{batch_idx+1}/{len(train_loader)}] - Validation Loss: {avg_val_loss:.4f}")
+                model.train()
             
         avg_loss = total_loss / len(train_loader)
         
         # Utilisation de tqdm.write pour ne pas interférer avec les barres
-        tqdm.write(f"End of Epoch [{epoch+1}/{epochs}], Average Loss: {avg_loss:.4f}\n")
+        tqdm.write(f"End of Epoch [{epoch+1}/{epochs}], Average Train Loss: {avg_loss:.4f}, Average Validation Loss: {avg_val_loss:.4f}\n")
 
-        # Validation todo
+    return losses, val_losses, train_steps, val_steps
 
 
 if __name__ == "__main__":
     PROJECTION_DIM = 512
     BATCH_SIZE = 512
     LEARNING_RATE = 1e-3
-    EPOCHS = 5
-    TRAIN_VAL_SPLIT = 0.8
+    EPOCHS = 1
+    TRAIN_VAL_SPLIT = 0.9
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
@@ -145,9 +173,22 @@ if __name__ == "__main__":
 
     # Run training
     print("Starting training...")
-    train_clip(model, train_loader, val_loader, optimizer, device, epochs=EPOCHS)
+    losses, val_losses, train_steps, val_steps = train_clip(model, train_loader, val_loader, optimizer, device, epochs=EPOCHS)
     print("Training finished!")
 
+    # Model saving
     model_path = "clip_model.pth"
     torch.save(model.state_dict(), model_path)
     print(f"Model saved to {model_path}")
+
+    # Plotting losses (no gui available, so we save the plot instead)
+    import matplotlib.pyplot as plt
+    plt.figure(figsize=(10, 5))
+    plt.plot(train_steps, losses, label="Train Loss (per batch)")
+    plt.plot(val_steps, val_losses, label="Validation Loss (per 100 batches)", marker='o')
+    plt.xlabel("Batch")
+    plt.ylabel("Loss")
+    plt.title("CLIP Training Loss")
+    plt.legend()
+    plt.savefig("clip_losses.png")
+    print("Loss plot saved to clip_losses.png")
