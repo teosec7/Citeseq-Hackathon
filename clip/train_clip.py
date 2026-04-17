@@ -64,37 +64,37 @@ def clip_loss(logits):
     return (loss_rna + loss_query) / 2.0
 
 def train_clip(model, train_loader, val_loader, optimizer, device, epochs=10):
-    """
-    Training loop for the CLIP model.
-    """
     model.to(device)
     
     for epoch in range(epochs):
         model.train()
         total_loss = 0.0
         
-        for batch_idx, (rna, queries, ids) in enumerate(train_loader):
+        # Création de la barre de progression pour l'epoch
+        pbar = tqdm(train_loader, desc=f"Epoch [{epoch+1}/{epochs}]", unit="batch")
+        
+        for rna, queries, ids in pbar:
             rna = rna.to(device)
             queries = queries.to(device)
             
             optimizer.zero_grad()
             
-            # Forward pass: compute similarity scores
             logits = model(rna, queries)
-            
-            # Compute loss
             loss = clip_loss(logits)
             
-            # Backward pass
             loss.backward()
             optimizer.step()
             
-            total_loss += loss.item()
+            current_loss = loss.item()
+            total_loss += current_loss
             
-            print(f"Epoch [{epoch+1}/{epochs}], Batch [{batch_idx+1}/{len(train_loader)}], Loss: {loss.item():.4f}")
-                
+            # Mise à jour des stats dans la barre (postfix)
+            pbar.set_postfix({"loss": f"{current_loss:.4f}"})
+            
         avg_loss = total_loss / len(train_loader)
-        print(f"End of Epoch [{epoch+1}/{epochs}], Average Loss: {avg_loss:.4f}\n")
+        
+        # Utilisation de tqdm.write pour ne pas interférer avec les barres
+        tqdm.write(f"End of Epoch [{epoch+1}/{epochs}], Average Loss: {avg_loss:.4f}\n")
 
         # Validation todo
 
@@ -102,7 +102,7 @@ def train_clip(model, train_loader, val_loader, optimizer, device, epochs=10):
 if __name__ == "__main__":
     PROJECTION_DIM = 512
     BATCH_SIZE = 512
-    LEARNING_RATE = 1e-4
+    LEARNING_RATE = 1e-3
     EPOCHS = 5
     TRAIN_VAL_SPLIT = 0.8
     
@@ -116,6 +116,12 @@ if __name__ == "__main__":
     print("Loading datasets")
     rna_dataset = EmbeddingRNADatasetIO(rna_embeddings_path)
     query_dataset = EmbeddingProteinQueryDatasetIO(query_embeddings_path)
+
+    rna_dim = rna_dataset[0][0].shape[0]
+    query_dim = query_dataset[0][0].shape[0]
+    print(f"Detected rna embedding size: {rna_dim}\n"
+         f"Detected query embedding size: {query_dim}")
+    
         
     #----------------------------- Do not change the code below this line -----------------------------#
 
@@ -129,6 +135,8 @@ if __name__ == "__main__":
     # Instantiate the CLIP model
     print("Instantiate the model & optimizer")
     model = CLIP(
+        rna_dim=rna_dim, 
+        queries_dim=query_dim,
         proj_dim=PROJECTION_DIM
     )
     
