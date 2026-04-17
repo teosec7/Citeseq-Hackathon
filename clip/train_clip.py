@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
 
+from Embeddings.dataset_rna_embeddings import EmbeddingRNADatasetIO
 from clip import CLIP
 from clip_dataset import CLIPDataset
 
@@ -98,8 +99,9 @@ if __name__ == "__main__":
 
     # Load datasets
     query_embeddings_path = "cell_texts_augmented_K20_flip10.csv_embeddings.h5"
+    rna_embeddings_path = "rna_embeddings.h5"
 
-    rna_dataset = ... # To fill
+    rna_dataset = EmbeddingRNADatasetIO(rna_embeddings_path)
     query_dataset = EmbeddingProteinQueryDatasetIO(query_embeddings_path)
         
     #----------------------------- Do not change the code below this line -----------------------------#
