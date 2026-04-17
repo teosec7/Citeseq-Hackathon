@@ -3,3 +3,6 @@
 *.ipynb
 */**.txt
 .ipynb_checkpoints/
+*.h5ad
+*/**.h5ad
+
