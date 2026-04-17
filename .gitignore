@@ -1,6 +1,5 @@
 *h5mu
 **/*h5mu
-*.ipynb
 */**.txt
 .ipynb_checkpoints/
 *.h5ad
