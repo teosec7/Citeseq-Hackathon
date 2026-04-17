@@ -1,0 +1,13 @@
+streamlit>=1.30
+torch>=2.0
+numpy
+pandas
+scanpy
+anndata
+muon
+h5py
+umap-learn
+plotly
+transformers
+scikit-learn
+scipy
