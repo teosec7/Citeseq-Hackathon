@@ -37,3 +37,9 @@ class CLIP(torch.nn.Module):
         queries_proj = F.normalize(queries_proj, p=2, dim=-1)
         
         return rna_proj @ queries_proj.t() * self.t_prime.exp() + self.b
+
+    def get_rna_projection(self, rna_emb):
+        return self.rna_proj_layer(rna_emb)
+    
+    def get_queries_projection(self, queries_emb):
+        return self.queries_proj_layer(queries_emb)
