@@ -73,6 +73,11 @@ class EmbeddingProteinQueryDatasetIO(Dataset):
         with h5py.File(self.file_path, "r") as f:
             self.length = f["embeddings"].shape[0]
 
+    def get_all_cell_ids(self):
+        with h5py.File(self.file_path, "r") as f:
+            ids = f["cell_ids"][:]
+            return [cid.decode("utf-8") if isinstance(cid, bytes) else cid for cid in ids]
+
     def __len__(self):
         return self.length
 

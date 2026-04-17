@@ -1,3 +1,7 @@
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -20,11 +24,14 @@ def create_train_val_datasets(rna_dataset, query_dataset, train_ratio=0.8):
     """
     Split les datasets en train/val selon les cell_ids uniques pour éviter le dataleakage.
     """
-    all_cell_ids = set()
-    for idx in tqdm(range(len(rna_dataset))):
-        _, cell_id = rna_dataset[idx]
-        c_id = cell_id.item() if isinstance(cell_id, torch.Tensor) else cell_id
-        all_cell_ids.add(c_id)
+    if hasattr(rna_dataset, 'get_all_cell_ids'):
+        all_cell_ids = set(rna_dataset.get_all_cell_ids())
+    else:
+        all_cell_ids = set()
+        for idx in range(len(rna_dataset)):
+            _, cell_id = rna_dataset[idx]
+            c_id = cell_id.item() if isinstance(cell_id, torch.Tensor) else cell_id
+            all_cell_ids.add(c_id)
         
     all_cell_ids = list(all_cell_ids)
     random.shuffle(all_cell_ids)
