@@ -28,7 +28,7 @@ def create_train_val_datasets(rna_dataset, query_dataset, train_ratio=0.8):
         all_cell_ids = set(rna_dataset.get_all_cell_ids())
     else:
         all_cell_ids = set()
-        for idx in range(len(rna_dataset)):
+        for idx in tqdm(range(len(rna_dataset))):
             _, cell_id = rna_dataset[idx]
             c_id = cell_id.item() if isinstance(cell_id, torch.Tensor) else cell_id
             all_cell_ids.add(c_id)
