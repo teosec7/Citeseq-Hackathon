@@ -1,6 +1,8 @@
 import h5py
 import torch
 from torch.utils.data import Dataset
+import pandas as pd
+
 
 class TextProteinQueryDataset(Dataset):
     def __init__(self, csv_file, query_transform=None, in_memory=True):
