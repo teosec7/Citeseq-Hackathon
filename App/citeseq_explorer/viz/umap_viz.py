@@ -2,8 +2,15 @@ import numpy as np
 import plotly.graph_objects as go
 import streamlit as st
 
-from ..config import STATUS_COLORS, STATUS_LABELS, STATUS_ORDER
+from ..config import STATUS_LABELS, STATUS_ORDER
 from .base import QueryResult, VizContext, cohort_mask_for_query
+
+STATUS_COLORS = {
+    "Healthy": "#2EC4B6",
+    "PSO":     "#F77F00",
+    "PSA":     "#D62828",
+    "PSX":     "#6A4C93",
+}
 
 
 class UMAPViz:
@@ -35,7 +42,7 @@ class UMAPViz:
             and ctx.cell_types is not None
         )
         if has_status:
-            options.append("Disease Status (cohort)")
+            options.append("Disease Status")
 
         color_mode = st.session_state.get("umap_color_mode", "Similarity score")
         if color_mode not in options:
@@ -97,7 +104,7 @@ def _build_figure(
                 bordercolor="rgba(0,0,0,0.35)",
                 borderwidth=0.6, borderpad=2,
             )
-    elif color_mode == "Disease Status (cohort)":
+    elif color_mode == "Disease Status":
         cohort, chosen = cohort_mask_for_query(q, ctx.cell_types, n_top_types=n_top)
         status_all = ctx.obs["Status"].astype(str).values
         bg = ~cohort
@@ -135,13 +142,7 @@ def _build_figure(
                 "sub": STATUS_LABELS.get(s, s),
                 "color": color,
             })
-        fig.add_annotation(
-            text=f"Cohort: {', '.join(chosen)} · n={total:,}",
-            xref="paper", yref="paper", x=0.01, y=0.99,
-            showarrow=False, font=dict(size=11),
-            bgcolor="rgba(255,255,255,0.7)",
-        )
-    else:  # Query similarity
+    else:
         legend_items.append({
             "name": "Cells",
             "sub": "color = cosine similarity",
@@ -162,7 +163,13 @@ def _build_figure(
                 x=xy[:, 0], y=xy[:, 1],
                 mode="markers",
                 marker=dict(
-                    size=point_size, color=sims, colorscale="RdBu_r", cmid=0.0,
+                    size=point_size, color=sims,
+                    colorscale=[
+                        [0.0, "#E58A8A"],
+                        [0.5, "#F5F1E6"],
+                        [1.0, "#2EC4B6"],
+                    ],
+                    cmid=0.0,
                     showscale=True, colorbar=dict(title="sim", x=1.02, len=0.7),
                     opacity=0.75,
                 ),
@@ -170,19 +177,17 @@ def _build_figure(
             )
         )
 
-    if q.umap_point is not None and color_mode != "Disease Status (cohort)":
-        fig.add_trace(
-            go.Scatter(
-                x=[q.umap_point[0]], y=[q.umap_point[1]],
-                mode="markers",
-                marker=dict(size=18, color="gold", symbol="star",
-                            line=dict(width=2, color="black")),
-                name="query",
-                hovertext=[q.text], hoverinfo="text",
-                showlegend=False,
-            )
+    if q.umap_point is not None and color_mode != "Disease Status":
+        qx, qy = float(q.umap_point[0]), float(q.umap_point[1])
+        fig.add_annotation(
+            x=qx, y=qy, text="★", showarrow=False,
+            font=dict(size=30, color="black", family="Archivo Narrow, sans-serif"),
         )
-        legend_items.append({"name": "Query position", "color": "gold", "shape": "star"})
+        fig.add_annotation(
+            x=qx, y=qy, text="★", showarrow=False,
+            font=dict(size=24, color="gold", family="Archivo Narrow, sans-serif"),
+        )
+        legend_items.insert(0, {"name": "Query position", "color": "gold", "shape": "star"})
 
     fig.update_layout(
         width=850, height=850, autosize=False,
@@ -193,10 +198,12 @@ def _build_figure(
         xaxis=dict(
             title="UMAP1", showgrid=False, zeroline=False,
             showticklabels=False, scaleanchor="y", scaleratio=1,
+            showline=True, linecolor="#111111", linewidth=1.5, mirror=False,
         ),
         yaxis=dict(
             title="UMAP2", showgrid=False, zeroline=False,
             showticklabels=False,
+            showline=True, linecolor="#111111", linewidth=1.5, mirror=False,
         ),
     )
     return fig, legend_items
@@ -206,10 +213,7 @@ def _place_labels(
     centroids: list[tuple[str, float, float, int]],
     xy: np.ndarray,
 ) -> list[tuple[str, float, float]]:
-    """Greedy placement: largest cluster first, push later labels away from
-    already-placed ones until they're at least `min_dist` apart."""
     extent = max(float(np.ptp(xy[:, 0])), float(np.ptp(xy[:, 1])))
-    # roughly: each label gets ~6% of the plot extent of breathing room
     min_dist = max(extent * 0.06, 0.5)
 
     items = sorted(centroids, key=lambda t: -t[3])
@@ -226,7 +230,6 @@ def _place_labels(
                 break
             px, py, d = collision
             if d < 1e-6:
-                # identical centroid: nudge in an arbitrary direction
                 x += min_dist
             else:
                 push = (min_dist - d) + 0.02 * extent
@@ -255,7 +258,7 @@ def _render_legend(items: list[dict], color_mode: str) -> None:
     if not items:
         return
     st.markdown("**Legend**")
-    rows = []
+    rows = ["<div style='max-height:820px;overflow-y:auto;padding-right:6px'>"]
     for item in items:
         shape = item.get("shape", "square")
         if shape == "star":
@@ -289,4 +292,5 @@ def _render_legend(items: list[dict], color_mode: str) -> None:
             f"{swatch}<span style='vertical-align:middle'>{item['name']}</span>"
             f"{sub}</div>"
         )
+    rows.append("</div>")
     st.markdown("".join(rows), unsafe_allow_html=True)

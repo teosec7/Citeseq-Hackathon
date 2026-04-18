@@ -1,7 +1,8 @@
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
+import h5py
 import numpy as np
 import pandas as pd
 
@@ -10,12 +11,12 @@ from .config import RNA_ENCODINGS, find_h5mu, FALLBACK_PROTEINS
 
 @dataclass
 class Dataset:
-    rna_encodings: np.ndarray        # (n_cells, 2000) float32
-    cell_types: np.ndarray | None    # (n_cells,) str, or None if h5mu missing
-    protein_names: list[str]         # cleaned protein marker names (or fallback)
-    h5mu_path: Path | None           # where h5mu was found
+    rna_encodings: np.ndarray
+    cell_types: np.ndarray | None
+    protein_names: list[str]
+    h5mu_path: Path | None
     n_cells: int
-    obs: pd.DataFrame | None = None  # full per-cell metadata when h5mu present
+    obs: pd.DataFrame | None = None
 
     @property
     def has_h5mu(self) -> bool:
@@ -26,14 +27,10 @@ _CD_HEAD = re.compile(r"^(CD\d+[a-zA-Z]?)-.+$")
 
 
 def _clean_protein_name(name: str) -> str:
-    # Raw-file format used "|" between main + alt (CD107a|LAMP-1);
-    # binarized file uses "-" everywhere (CD107a-LAMP-1). Handle both.
     name = name.split("|")[0]
-    # Trailing "-<digit>" = duplicate-antibody marker (CD14-1 → CD14)
     parts = name.rsplit("-", 1)
     if len(parts) == 2 and parts[1].isdigit():
         name = parts[0]
-    # Strip alt-name tail if the primary is a CD-prefixed marker
     m = _CD_HEAD.match(name)
     if m:
         name = m.group(1)
@@ -44,10 +41,11 @@ def load_dataset() -> Dataset:
     if not RNA_ENCODINGS.exists():
         raise FileNotFoundError(
             f"Missing RNA encodings at {RNA_ENCODINGS}. "
-            "This file is required (it was produced on the GPU node)."
+            "See README for where to put the precomputed embeddings file."
         )
 
-    rna_encodings = np.load(RNA_ENCODINGS, mmap_mode="r")
+    with h5py.File(RNA_ENCODINGS, "r") as f:
+        rna_encodings = f["embeddings"][:].astype(np.float32, copy=False)
     n_cells = rna_encodings.shape[0]
 
     h5mu_path = find_h5mu()

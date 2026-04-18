@@ -1,19 +1,56 @@
 # CITE-seq CLIP Explorer
 
-Interactive Streamlit app to probe the CLIP-style model trained in `Nick/v2.ipynb`.
+Interactive Streamlit app for exploring a CLIP-style model that aligns
+single-cell RNA embeddings with natural-language queries. Built for the
+Lemanic Life Sciences Hackathon 2026.
 
-Type (or build) a protein-expression query, see the similarity over cells via:
-- **UMAP** — cells colored by query similarity (or by CellType), with the query point projected as a gold star
-- **Heatmap** — mean query similarity per known cell type
+## What the app does
+
+Type a free-text description of a cell population — e.g.
+*"This cell expresses CD3, CD4 and does not express CD8."* — and the app
+shows which cells in the dataset match:
+
+- **UMAP** — every cell in 2D, colored by similarity, cell type, or disease status
+- **Heatmap** — mean similarity across cell types
 - **Violin** — full distribution of similarity per cell type
+- **Bar plots** — disease-status composition and per-patient breakdown of the matched cohort
+- **Summary** — a plain-language description of the cohort, streamed from a local LLM (optional)
 
-Two queries can run side-by-side for A/B comparison.
+![Homepage](homepage.png)
 
 ## Setup
 
 ```bash
+git clone <this repo>
+cd <repo>
+python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 ```
+
+### Required artifacts
+
+These files are **not** in the repo. Drop them into the project locally:
+
+| File | Location | Description |
+| --- | --- | --- |
+| `clip_model.pth` | `weights/` | Trained CLIP model state dict |
+| `rna_embeddings.h5` | `data/` | Precomputed RNA feature embeddings, HDF5 with an `embeddings` dataset of shape `(n_cells, 1626)` |
+| `*.h5mu` | `data/` (optional) | MuData file with `rna.obs['CellType']`, `Status`, `Subject` columns. Enables heatmap, violin, and bar plots. |
+
+The RNA feature dim, query dim, and projection dim are set in
+`citeseq_explorer/config.py` (`D_RNA`, `D_QUERY`, `D_EMB`). Update them to
+match your trained model.
+
+### Optional: local LLM summaries
+
+The summary panel uses [Ollama](https://ollama.com) running locally:
+
+```bash
+ollama pull llama3.2
+ollama serve
+```
+
+The model name is configurable at the top of `citeseq_explorer/summary.py`.
 
 ## Run
 
@@ -21,26 +58,26 @@ pip install -r requirements.txt
 streamlit run streamlit_app.py
 ```
 
-The first launch computes all cell embeddings and fits UMAP, then caches both
-under `cache/` (`all_rna_embeddings.npy`, `umap_coords_all.npy`,
-`umap_reducer.joblib`). Subsequent launches are fast.
+The first launch computes UMAP coordinates and caches them under `cache/`.
+Subsequent launches load from cache.
 
-## Data
+## Project layout
 
-Expected in the App folder (where `streamlit_app.py` lives):
-
-- `cache/clip_cite_v2_best.pt` — model weights (already there)
-- `cache/gse_rna_hvg_encodings.npy` — per-cell 2000-HVG inputs (already there)
-- `*.h5mu` — CITE-seq dataset with `rna` + `protein` modalities. Drop it anywhere
-  in the App folder once the download finishes and hit the **↻ Re-scan for
-  dataset** button in the sidebar (or restart the app).
-
-While the `.h5mu` is missing, free-text queries + UMAP still work using a
-fallback marker list. CellType-based views (heatmap, violin, UMAP CellType
-coloring) will activate automatically once the file appears.
-
-## Adding a new visualization
-
-Drop a file in `viz_app/viz/` with a class that implements the `Viz` protocol
-(`base.py`), then register it in `viz_app/viz/__init__.py`'s `REGISTRY` list.
-It will show up as a new tab in the main area.
+```
+.
+├── streamlit_app.py              # entry point
+├── citeseq_explorer/
+│   ├── config.py                 # paths, dims, constants
+│   ├── data.py                   # load RNA embeddings + .h5mu
+│   ├── model.py                  # CLIP projection heads
+│   ├── embeddings.py             # RNA projection, text query encoding, UMAP
+│   ├── cohort_panel.py           # disease-status + per-patient bar plots
+│   ├── summary.py                # LLM cohort summary
+│   └── viz/
+│       ├── base.py               # shared types + cohort mask
+│       ├── umap_viz.py
+│       ├── heatmap_viz.py
+│       └── violin_viz.py
+├── requirements.txt
+└── README.md
+```

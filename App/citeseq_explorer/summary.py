@@ -41,11 +41,10 @@ def render_summary_tab(ctx: VizContext, query: QueryResult) -> None:
     cache_key = (query.text, n_top, OLLAMA_MODEL)
     cache = st.session_state.setdefault("_summary_cache", {})
 
-    cols = st.columns([1, 1, 6])
-    with cols[0]:
-        regen = st.button("Generate", type="primary")
-    with cols[1]:
-        if cache_key in cache and st.button("Clear"):
+    left, mid, right = st.columns([5, 2, 5])
+    with mid:
+        regen = st.button("Generate summary", type="primary", use_container_width=True)
+        if cache_key in cache and st.button("Clear", use_container_width=True):
             cache.pop(cache_key, None)
             st.rerun()
 

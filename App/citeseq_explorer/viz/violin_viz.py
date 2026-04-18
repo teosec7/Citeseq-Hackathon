@@ -31,8 +31,8 @@ class ViolinViz:
                     y=query_a.similarity[mask],
                     x=[ct] * int(mask.sum()),
                     name=ct,
-                    line_color="#1f4e79",
-                    fillcolor="rgba(70,130,180,0.55)",
+                    line_color="#1B8E84",
+                    fillcolor="rgba(46,196,182,0.55)",
                     points=False,
                     width=0.85,
                     spanmode="hard",
@@ -49,7 +49,17 @@ class ViolinViz:
             paper_bgcolor="#FFFFFF", plot_bgcolor="#FFFFFF",
             font=dict(family="Archivo Narrow, sans-serif", color="#111111", size=12),
             margin=dict(l=30, r=10, t=20, b=120),
-            xaxis=dict(tickangle=-45, title="", showgrid=False, zeroline=False),
-            yaxis=dict(title="cosine similarity", showgrid=False, zeroline=False),
+            xaxis=dict(
+                tickangle=-45, title="",
+                showgrid=False, zeroline=False,
+                showline=True, linecolor="#111111", linewidth=1.5,
+                tickfont=dict(size=12, color="#111111"),
+            ),
+            yaxis=dict(
+                title=dict(text="cosine similarity", font=dict(size=14, color="#111111")),
+                showgrid=False, zeroline=False,
+                showline=True, linecolor="#111111", linewidth=1.5,
+                tickfont=dict(size=12, color="#111111"),
+            ),
         )
         st.plotly_chart(fig, use_container_width=True)

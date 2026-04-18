@@ -31,30 +31,40 @@ class HeatmapViz:
         means = means[order]
 
         hover = [
-            f"{query_a.text}<br>{ct}<br>mean sim={m:.3f}"
+            f"{query_a.text}<br>{ct}<br>mean similarity score={m:.3f}"
             for ct, m in zip(unique_types, means)
         ]
         fig = go.Figure(
             data=go.Heatmap(
                 z=[means],
                 x=unique_types,
-                y=["mean sim"],
-                colorscale="RdBu_r",
+                y=["mean similarity score"],
+                colorscale=[
+                    [0.0, "#E58A8A"],
+                    [0.5, "#F5F1E6"],
+                    [1.0, "#2EC4B6"],
+                ],
                 zmid=0.0,
-                text=[[f"{v:.2f}" for v in means]],
-                texttemplate="%{text}",
-                textfont=dict(size=10),
                 hovertext=[hover],
                 hoverinfo="text",
-                colorbar=dict(title="mean sim"),
+                showscale=True,
+                colorbar=dict(thickness=14, len=0.9),
             )
         )
         fig.update_layout(
-            height=180,
+            height=320,
             paper_bgcolor="#FFFFFF", plot_bgcolor="#FFFFFF",
             font=dict(family="Archivo Narrow, sans-serif", color="#111111", size=12),
             margin=dict(l=30, r=10, t=20, b=100),
-            xaxis=dict(tickangle=-45, showgrid=False, zeroline=False),
-            yaxis=dict(showgrid=False, zeroline=False),
+            xaxis=dict(
+                tickangle=-45, showgrid=False, zeroline=False,
+                showline=True, linecolor="#111111", linewidth=1.5,
+                tickfont=dict(color="#111111", size=12),
+            ),
+            yaxis=dict(
+                tickangle=-90, showgrid=False, zeroline=False,
+                showline=True, linecolor="#111111", linewidth=1.5,
+                tickfont=dict(color="#111111", size=12),
+            ),
         )
         st.plotly_chart(fig, use_container_width=True)

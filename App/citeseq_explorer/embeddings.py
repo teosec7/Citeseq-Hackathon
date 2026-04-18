@@ -1,64 +1,81 @@
+"""RNA projection + text query encoding.
+
+RNA inputs are the precomputed merged embeddings (e.g. scGPT + PCA + scVI +
+C2S, 1626-d) stored in `data/rna_embeddings.h5`. We project them through the
+trained RNA head, L2-normalise, and cache the result as a float32 .npy.
+
+Text queries use the `nomic-ai/nomic-embed-text-v1` encoder with the required
+`search_query: ` prefix; the [CLS] hidden state is passed through the trained
+query head and L2-normalised.
+"""
+from __future__ import annotations
+
 import pickle
 
 import numpy as np
 import torch
 
 from .config import (
-    BIOBERT_NAME,
+    D_EMB,
     RNA_EMB_CACHE,
+    TEXT_ENCODER_NAME,
+    TEXT_QUERY_PREFIX,
     UMAP_COORDS_CACHE,
     UMAP_REDUCER_CACHE,
 )
-from .model import CLIPCITE
+from .model import CLIP
 
 
 @torch.no_grad()
 def compute_all_rna_embeddings(
-    model: CLIPCITE,
+    model: CLIP,
     rna_encodings: np.ndarray,
     device: torch.device,
-    batch_size: int = 2048,
+    batch_size: int = 4096,
 ) -> np.ndarray:
     if RNA_EMB_CACHE.exists():
         arr = np.load(RNA_EMB_CACHE)
-        if arr.shape[0] == rna_encodings.shape[0]:
+        if arr.shape[0] == rna_encodings.shape[0] and arr.shape[1] == D_EMB:
             return arr
 
     n = rna_encodings.shape[0]
-    out = np.empty((n, 256), dtype=np.float32)
+    out = np.empty((n, D_EMB), dtype=np.float32)
     for start in range(0, n, batch_size):
         end = min(start + batch_size, n)
-        batch = torch.tensor(np.asarray(rna_encodings[start:end]), dtype=torch.float32, device=device)
-        emb = model.get_rna_embedding(batch).cpu().numpy()
-        out[start:end] = emb
+        batch = torch.tensor(
+            np.asarray(rna_encodings[start:end]), dtype=torch.float32, device=device
+        )
+        out[start:end] = model.get_rna_embedding(batch).cpu().numpy()
     np.save(RNA_EMB_CACHE, out)
     return out
 
 
 class QueryEncoder:
-    """Lazy-loads BioBERT once, encodes a text query into the shared 256-d space."""
+    """Nomic-embed-text-v1 + the trained query projection head."""
 
-    def __init__(self, model: CLIPCITE, device: torch.device):
+    def __init__(self, model: CLIP, device: torch.device):
         from transformers import AutoModel, AutoTokenizer
-        self.tokenizer = AutoTokenizer.from_pretrained(BIOBERT_NAME)
-        self.biobert = AutoModel.from_pretrained(BIOBERT_NAME).to(device)
-        self.biobert.eval()
+        self.tokenizer = AutoTokenizer.from_pretrained(TEXT_ENCODER_NAME)
+        self.text_model = AutoModel.from_pretrained(
+            TEXT_ENCODER_NAME, trust_remote_code=True
+        ).to(device)
+        self.text_model.eval()
         self.model = model
         self.device = device
 
     @torch.no_grad()
     def encode(self, query_text: str) -> np.ndarray:
+        prompt = TEXT_QUERY_PREFIX + query_text
         tokens = self.tokenizer(
-            query_text, return_tensors="pt", truncation=True, max_length=128
+            prompt, return_tensors="pt", truncation=True, max_length=256, padding=True
         )
         tokens = {k: v.to(self.device) for k, v in tokens.items()}
-        bio_emb = self.biobert(**tokens).last_hidden_state[:, 0, :]
-        q_emb = self.model.get_protein_embedding(bio_emb).cpu().numpy().squeeze()
-        return q_emb  # (256,), L2-normalized
+        hidden = self.text_model(**tokens).last_hidden_state[:, 0, :]
+        q_emb = self.model.get_protein_embedding(hidden).cpu().numpy().squeeze()
+        return q_emb.astype(np.float32)
 
 
 def fit_or_load_umap(all_rna_embs: np.ndarray, n_neighbors: int = 15, min_dist: float = 0.3):
-    """Return (reducer, cell_coords). Cache to disk so relaunch is instant."""
     import umap
 
     if UMAP_COORDS_CACHE.exists() and UMAP_REDUCER_CACHE.exists():
@@ -79,10 +96,8 @@ def fit_or_load_umap(all_rna_embs: np.ndarray, n_neighbors: int = 15, min_dist: 
 
 
 def project_query_to_umap(reducer, query_emb: np.ndarray) -> np.ndarray:
-    q = query_emb.reshape(1, -1)
-    return reducer.transform(q)[0]
+    return reducer.transform(query_emb.reshape(1, -1))[0]
 
 
 def similarity(query_emb: np.ndarray, all_rna_embs: np.ndarray) -> np.ndarray:
-    """Cosine similarity (embeddings are already L2-normalized) -> (n_cells,)."""
     return all_rna_embs @ query_emb

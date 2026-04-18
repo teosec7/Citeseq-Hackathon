@@ -2,8 +2,7 @@
 
 For each active query, the cohort is the cells belonging to the top-N cell
 types ranked by mean similarity to the query. This module renders the cohort's
-disease-Status composition and per-Subject breakdown, with the whole-dataset
-baseline overlaid for comparison.
+disease-Status composition and per-Subject breakdown.
 """
 from __future__ import annotations
 
@@ -12,8 +11,15 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from .config import STATUS_COLORS, STATUS_LABELS, STATUS_ORDER
+from .config import STATUS_LABELS, STATUS_ORDER
 from .viz.base import QueryResult, VizContext, cohort_mask_for_query
+
+STATUS_COLORS = {
+    "Healthy": "#A8D5E2",
+    "PSO":     "#F6C28B",
+    "PSA":     "#F2A8A8",
+    "PSX":     "#C5B0D5",
+}
 
 
 def render_cohort_panel(
@@ -42,9 +48,6 @@ def render_cohort_panel(
 def _render_for_query(ctx: VizContext, label: str, q: QueryResult, n_top: int) -> None:
     mask, chosen = cohort_mask_for_query(q, ctx.cell_types, n_top_types=n_top)
     total = int(mask.sum())
-    st.markdown(
-        f"**Query {label} cohort** — {', '.join(chosen)} · n = {total:,} cells"
-    )
 
     if total == 0:
         st.warning("Cohort is empty.")
@@ -57,6 +60,10 @@ def _render_for_query(ctx: VizContext, label: str, q: QueryResult, n_top: int) -
     st.plotly_chart(_status_chart(cohort_status, status_all, present), use_container_width=True)
 
     if "Subject" in ctx.obs.columns:
+        st.markdown(
+            "<hr style='border:none;border-top:1px solid #111111;margin:1.25rem 0;'>",
+            unsafe_allow_html=True,
+        )
         st.plotly_chart(
             _subject_chart(ctx.obs.loc[mask], present),
             use_container_width=True,
@@ -65,7 +72,6 @@ def _render_for_query(ctx: VizContext, label: str, q: QueryResult, n_top: int) -
 
 def _status_chart(cohort_status: np.ndarray, status_all: np.ndarray, present: list[str]) -> go.Figure:
     total_cohort = max(len(cohort_status), 1)
-    total_all = len(status_all)
     cohort_pct = [100 * (cohort_status == s).sum() / total_cohort for s in present]
     counts = [int((cohort_status == s).sum()) for s in present]
 
@@ -81,7 +87,7 @@ def _status_chart(cohort_status: np.ndarray, status_all: np.ndarray, present: li
         )
     )
     fig.update_layout(
-        title=dict(text="Disease Status composition", font=dict(size=13)),
+        title=dict(text="Disease Status composition", font=dict(size=18, color="#111111"), x=0.5, xanchor="center"),
         height=420,
         paper_bgcolor="#FFFFFF", plot_bgcolor="#FFFFFF",
         font=dict(family="Archivo Narrow, sans-serif", color="#111111", size=12),
@@ -89,9 +95,15 @@ def _status_chart(cohort_status: np.ndarray, status_all: np.ndarray, present: li
         xaxis=dict(
             ticktext=[f"{s}<br>{STATUS_LABELS.get(s, s)}" for s in present],
             tickvals=present,
-            showgrid=False, zeroline=False,
+            showgrid=False, zeroline=False, showline=True, linecolor="#111111", linewidth=1,
+            tickfont=dict(size=14, color="#111111"),
+            title=dict(font=dict(size=15, color="#111111")),
         ),
-        yaxis=dict(title="% of cohort", showgrid=False, zeroline=False),
+        yaxis=dict(
+            title=dict(text="% of matched cell type(s)", font=dict(size=15, color="#111111")),
+            tickfont=dict(size=14, color="#111111"),
+            showgrid=False, zeroline=False, showline=True, linecolor="#111111", linewidth=1,
+        ),
         showlegend=False,
     )
     return fig
@@ -105,7 +117,6 @@ def _subject_chart(cohort_obs: pd.DataFrame, present: list[str]) -> go.Figure:
         pd.crosstab(subj, status)
         .reindex(columns=present, fill_value=0)
     )
-    # Order subjects by their Status, then by total cells (descending)
     subj_status = cohort_obs.groupby("Subject")["Status"].first().astype(str)
     order_key = pd.DataFrame({
         "subject": counts.index,
@@ -126,15 +137,24 @@ def _subject_chart(cohort_obs: pd.DataFrame, present: list[str]) -> go.Figure:
             )
         )
     fig.update_layout(
-        title=dict(text="Cells per Subject (stacked by Status)", font=dict(size=13)),
+        title=dict(text="Cells per Patient (coloured by Disease status)", font=dict(size=18, color="#111111"), x=0.5, xanchor="center"),
         barmode="stack",
         height=420,
         paper_bgcolor="#FFFFFF", plot_bgcolor="#FFFFFF",
         font=dict(family="Archivo Narrow, sans-serif", color="#111111", size=12),
-        margin=dict(l=20, r=10, t=40, b=80),
-        xaxis=dict(title="Subject", tickangle=-60, tickfont=dict(size=9), showgrid=False, zeroline=False),
-        yaxis=dict(title="cells in cohort", showgrid=False, zeroline=False),
+        margin=dict(l=20, r=100, t=50, b=80),
+        xaxis=dict(
+            title=dict(text="Patient", font=dict(size=15, color="#111111")),
+            tickangle=-90,
+            tickfont=dict(size=13, color="#111111"),
+            showgrid=False, zeroline=False, showline=True, linecolor="#111111", linewidth=1,
+        ),
+        yaxis=dict(
+            title=dict(text="cells in matched cell type(s)", font=dict(size=15, color="#111111")),
+            tickfont=dict(size=14, color="#111111"),
+            showgrid=False, zeroline=False, showline=True, linecolor="#111111", linewidth=1,
+        ),
         showlegend=True,
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=1.02),
     )
     return fig
